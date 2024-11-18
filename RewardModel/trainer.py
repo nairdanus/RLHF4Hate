@@ -10,7 +10,7 @@ class RewardLoss(nn.Module):
 
     def forward(self, chosen_reward, rejected_reward):
         # Calculate the difference and apply sigmoid
-        return -torch.log(torch.sigmoid(chosen_reward - rejected_reward))
+        return (-torch.log(torch.sigmoid(chosen_reward - rejected_reward))).mean()
 
 
 class SentencePairDataset(Dataset):
@@ -59,8 +59,6 @@ class SentencePairDataset(Dataset):
         }
 
 
-
-
 class RewardModelTrainer:
     def __init__(self, model, dataloader, epochs, lr):
         self.optimizer = torch.optim.Adam(params =  model.parameters(), lr=lr)
@@ -70,13 +68,21 @@ class RewardModelTrainer:
         self.epochs = epochs
 
     def train(self):
-        self.model.train()
 
         best_loss = float('inf')  # Initialize best loss as infinity
         checkpoint_path = "best_model_checkpoint.pth"  # Path to save the best model
+        losses = []
+        eval_diffs =[]
+
+        tokenizer = RobertaTokenizer.from_pretrained('roberta-large')
+        tok_good = tokenizer("<s> The sun is shining </s> It is a bright day </s>", return_tensors="pt")
+        tok_bad = tokenizer("<s> Sebastian </s>", return_tensors="pt")
 
         for e in range(self.epochs):
+            self.model.train()
+            
             for batch in self.dataloader:
+
                 self.optimizer.zero_grad()
 
                 # Forward pass through the model
@@ -85,18 +91,27 @@ class RewardModelTrainer:
                 # Calculate the loss (you can use your custom loss function here)
                 loss = self.criterion(chosen_reward, rejected_reward)
 
+                losses.append(loss.mean().item())
+
                 # Backward pass
                 loss.backward()
 
                 # Optimize the model
                 self.optimizer.step()
 
-                print(f"Epoch {e+1}/{self.epochs}, Loss: {loss.item()}")
+                print(f"Epoch {e+1}/{self.epochs}, Loss: {loss.mean().item()}")
 
                 # Save the model checkpoint if we have a new best loss
                 if loss.item() < best_loss:
                     best_loss = loss.item()
                     print(f"New best loss: {best_loss}. Saving model checkpoint...")
                     torch.save(self.model.state_dict(), checkpoint_path)
+            
+            self.model.eval()
+            eval_diffs.append(self.model(**tok_good) -  self.model(**tok_bad))
+            print("good", self.model(**tok_good))
+            print("bad", self.model(**tok_bad))
 
         print(f"Training finished. Best model saved to {checkpoint_path}")
+
+        return losses, eval_diffs
