@@ -10,6 +10,7 @@ class RewardLoss(nn.Module):
 
     def forward(self, chosen_reward, rejected_reward):
         # Calculate the difference and apply sigmoid
+        print("chosen", chosen_reward, "rejected", rejected_reward)
         return (-torch.log(torch.sigmoid(chosen_reward - rejected_reward))).mean()
 
 
@@ -33,8 +34,8 @@ class SentencePairDataset(Dataset):
         context, good_example, bad_example = self.data[idx]
 
         # Format as required: "[CLS] Context [SEP] Good example [SEP]" and "[CLS] Context [SEP] Bad example [SEP]"
-        good_input = f"<s> {context} </s> {good_example} </s>"
-        bad_input = f"<s> {context} </s> {bad_example} </s>"
+        good_input = f"{context} </s> {good_example}"
+        bad_input = f"{context} </s> {bad_example}"
 
         # Tokenize each input with RoBERTa's tokenizer
         good_encoding = self.tokenizer(
@@ -75,8 +76,8 @@ class RewardModelTrainer:
         eval_diffs =[]
 
         tokenizer = RobertaTokenizer.from_pretrained('roberta-large')
-        tok_good = tokenizer("<s> The sun is shining </s> It is a bright day </s>", return_tensors="pt")
-        tok_bad = tokenizer("<s> Sebastian </s>", return_tensors="pt")
+        tok_good = tokenizer("The sun is shining </s> It is a bright day", return_tensors="pt")
+        tok_bad = tokenizer("Sebastian", return_tensors="pt")
 
         for e in range(self.epochs):
             self.model.train()
@@ -88,10 +89,12 @@ class RewardModelTrainer:
                 # Forward pass through the model
                 chosen_reward, rejected_reward = self.model(**batch)
 
+                print("Rewards after model", chosen_reward, rejected_reward)
+
                 # Calculate the loss (you can use your custom loss function here)
                 loss = self.criterion(chosen_reward, rejected_reward)
 
-                losses.append(loss.mean().item())
+                losses.append(loss.item())
 
                 # Backward pass
                 loss.backward()
