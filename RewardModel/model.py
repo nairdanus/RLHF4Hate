@@ -10,7 +10,6 @@ class RoBERTaRewardModel(nn.Module):
         self.classifier = torch.nn.Linear(1024, 1)
         
 
-
     def forward(self, **kwargs):
         input_ids = kwargs.get("input_ids")
         attention_mask = kwargs.get("attention_mask")
